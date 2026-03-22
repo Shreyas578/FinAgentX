@@ -1,0 +1,30 @@
+# FinAgentX — Gitignore
+
+# Environment
+.env
+.env.local
+
+# Node
+node_modules/
+agent/node_modules/
+frontend/node_modules/
+
+# Hardhat artifacts
+artifacts/
+cache/
+
+# Python
+__pycache__/
+*.pyc
+ml/__pycache__/
+ml/models/*.pkl
+ml/data/
+
+# Build
+frontend/dist/
+frontend/.vite/
+
+# Misc
+*.log
+.DS_Store
+deployed-addresses.json

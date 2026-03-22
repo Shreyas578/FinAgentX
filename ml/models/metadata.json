@@ -1,0 +1,49 @@
+{
+  "feature_names": [
+    "tx_frequency",
+    "avg_balance",
+    "balance_volatility",
+    "repayment_history",
+    "failed_repayments",
+    "days_since_active"
+  ],
+  "target": "default_prob",
+  "ensemble_weights": {
+    "linear": 0.1,
+    "ridge": 0.2,
+    "lasso": 0.2,
+    "random_forest": 0.5
+  },
+  "metrics": {
+    "linear": {
+      "mse": 0.0028,
+      "mae": 0.0419,
+      "r2": 0.8543
+    },
+    "ridge": {
+      "mse": 0.0028,
+      "mae": 0.0419,
+      "r2": 0.8543
+    },
+    "lasso": {
+      "mse": 0.0028,
+      "mae": 0.042,
+      "r2": 0.8541
+    },
+    "random_forest": {
+      "mse": 0.0027,
+      "mae": 0.0412,
+      "r2": 0.8612
+    }
+  },
+  "feature_importance": {
+    "tx_frequency": 0.033,
+    "avg_balance": 0.0388,
+    "balance_volatility": 0.0488,
+    "repayment_history": 0.5676,
+    "failed_repayments": 0.2923,
+    "days_since_active": 0.0195
+  },
+  "trained_on_rows": 8000,
+  "version": "1.0.0"
+}

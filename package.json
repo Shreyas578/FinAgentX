@@ -1,0 +1,33 @@
+{
+  "name": "finagentx",
+  "version": "1.0.0",
+  "description": "FinAgentX — Autonomous On-Chain AI Lending Agent",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "node": "hardhat node",
+    "test": "hardhat test",
+    "agent": "node agent/index.js",
+    "ml:generate": "cd ml && python generate_dataset.py",
+    "ml:train": "cd ml && python train.py",
+    "ml:api": "cd ml && uvicorn api:app --reload --port 8000",
+    "frontend": "cd frontend && npm run dev",
+    "start": "concurrently \"npm run agent\" \"npm run frontend\""
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "ethers": "^6.9.0",
+    "express": "^4.18.2",
+    "ws": "^8.16.0",
+    "node-cron": "^3.0.3",
+    "concurrently": "^8.2.2"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0"
+  }
+}

@@ -172,7 +172,7 @@ The script will:
 1. ⏸️ **Pause** and show a confirmation prompt
 2. Check your ETH balance (needs ≥0.05 Sepolia ETH)
 3. Deploy: `CreditScore` → `LendingPool` → `LoanManager`
-4. Wire all permissions
+4. Wire all permissions & **Register Agent Address**
 5. Save `deployed-addresses.json` (copied to `agent/` and `frontend/src/`)
 
 ### Step 6 — Start the Agent

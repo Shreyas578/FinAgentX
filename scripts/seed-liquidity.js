@@ -43,8 +43,8 @@ async function main() {
   }
 
   // Define seed amount (e.g., 10 USDT)
-  const seedAmount = ethers.parseUnits("50.0", decimals); // Seed more to satisfy reserve ratio
-  
+  const seedAmount = ethers.parseUnits("100.0", decimals); // Seed 10 USDT
+
   // 4. Approve
   console.log(`\n⏳ Approving ${ethers.formatUnits(seedAmount, decimals)} USDT for LendingPool...`);
   const approveTx = await usdt.approve(POOL_ADDR, seedAmount);

@@ -8,7 +8,8 @@ const path = require("path");
 const readline = require("readline");
 
 // ── Mock USDT (for testing) ────────────────────────────────────────────────
-let SEPOLIA_USDT = "";
+// ── Mock USDT (for testing) ────────────────────────────────────────────────
+let SEPOLIA_USDT = "0xd077A400968890Eacc75cdc901F0356c943e4fDb";
 
 async function waitForConfirmation() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -46,13 +47,8 @@ async function main() {
     throw new Error("Insufficient Sepolia ETH! Need at least 0.05 ETH for deployment gas.");
   }
 
-  // ── 0. Deploy MockUSDT ──────────────────────────────────────────────────
-  console.log("📄 Deploying MockUSDT.sol...");
-  const MockUSDT = await ethers.getContractFactory("MockUSDT");
-  const mockUSDT = await MockUSDT.deploy();
-  await mockUSDT.waitForDeployment();
-  SEPOLIA_USDT = await mockUSDT.getAddress();
-  console.log(`   ✅ MockUSDT deployed: ${SEPOLIA_USDT}`);
+  // ── 0. Skip MockUSDT (using provided address) ──────────────────────────
+  console.log(`   ✅ Using provided USDT: ${SEPOLIA_USDT}`);
 
   // ── 1. Deploy CreditScore ────────────────────────────────────────────────
   console.log("📄 Deploying CreditScore.sol...");
@@ -88,18 +84,31 @@ async function main() {
   await tx.wait();
   console.log("   ✅ CreditScore → LoanManager linked");
 
+  // ── 4a. Register Agent ────────────────────────────────────────────────────
+  console.log("\n🔧 Registering agent...");
+  const agentMnemonic = process.env.AGENT_MNEMONIC || process.env.MNEMONIC;
+  if (agentMnemonic) {
+    const agentWallet = ethers.Wallet.fromPhrase(agentMnemonic);
+    const agentAddr = agentWallet.address;
+    tx = await loanManager.registerAgent(agentAddr);
+    await tx.wait();
+    console.log(`   ✅ Agent registered: ${agentAddr}`);
+  } else {
+    console.log("   ⚠️  No agent mnemonic found in .env, skipping registration.");
+  }
+
   // ── 4b. Register Asset and Seed Liquidity ─────────────────────────────────
   console.log("\n🔧 Registering USDT and seeding liquidity...");
   tx = await loanManager.registerAsset("USDT", SEPOLIA_USDT, lendingPoolAddr);
   await tx.wait();
   console.log("   ✅ USDT registered in LoanManager");
 
-  const seedAmount = ethers.parseUnits("500000", 6);
-  tx = await mockUSDT.approve(lendingPoolAddr, seedAmount);
-  await tx.wait();
-  tx = await lendingPool.deposit(seedAmount);
-  await tx.wait();
-  console.log("   ✅ Seeded 500,000 MockUSDT into LendingPool");
+  // const seedAmount = ethers.parseUnits("500000", 6);
+  // tx = await mockUSDT.approve(lendingPoolAddr, seedAmount);
+  // await tx.wait();
+  // tx = await lendingPool.deposit(seedAmount);
+  // await tx.wait();
+  console.log("   ✅ Seeding skipped (only 1,000 USDT total available)");
 
   // ── 5. Save deployed addresses ───────────────────────────────────────────
   const addresses = {

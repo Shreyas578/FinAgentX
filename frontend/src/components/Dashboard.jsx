@@ -19,12 +19,7 @@ const LM_ABI = [
 const LM_ADDR = addresses.loanManager
 const USDT_ADDR = addresses.usdt
 
-const mockCapitalData = Array.from({ length: 12 }, (_, i) => ({
-  month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i],
-  deposited: 8000 + i * 500 + Math.random() * 800,
-  borrowed: 3000 + i * 350 + Math.random() * 600,
-  interest: 100 + i * 45 + Math.random() * 80,
-}))
+const mockCapitalData = []
 
 export default function Dashboard({ wallet, agent }) {
   const [activeLoan, setActiveLoan] = useState(null)

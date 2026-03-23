@@ -261,9 +261,9 @@ The agent runs 24/7 with this 12-step loop:
 ## 📊 USDT on Sepolia
 
 ```
-Contract: 0x3B94E36181875d97183227e86dFa30bb61641adE (MockUSDT)
+Contract: 0xd077A400968890Eacc75cdc901F0356c943e4fDb (USDT)
 Network:  Ethereum Sepolia Testnet (chainId: 11155111)
-Source:   FinAgentX Mock USDT (Seeded with 500k liquidity for testing)
+Source:   Real Sepolia USDT (User-provided balance: 1,000 USDT)
 ```
 
 To get testnet USDT: [Circle faucet](https://faucet.circle.com) or swap Sepolia ETH on a testnet DEX.

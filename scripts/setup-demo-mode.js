@@ -17,17 +17,8 @@ async function main() {
   const pool = await ethers.getContractAt("LendingPool", poolAddr);
   const lm   = await ethers.getContractAt("LoanManager", lmAddr);
 
-  // 1. Seed Liquidity (50 USDT)
-  const decimals = 6;
-  const seedAmount = ethers.parseUnits("50.0", decimals);
-  
-  console.log(`\n⏳ Seeding 50 USDT to pool...`);
-  const approveTx = await usdt.approve(poolAddr, seedAmount);
-  await approveTx.wait();
-  
-  const depositTx = await pool.deposit(seedAmount);
-  await depositTx.wait();
-  console.log(`✅ Pool seeded with 50 USDT`);
+  // 1. Seed Liquidity (Skipped - using real USDT)
+  console.log(`\n⏳ Seeding skipped (only 1,000 USDT total available)`);
 
   // 2. Configure Demo Duration (1 minute)
   console.log(`\n⏳ Setting min loan duration to 60 seconds...`);

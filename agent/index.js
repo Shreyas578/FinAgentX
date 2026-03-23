@@ -411,7 +411,7 @@ async function main() {
   cron.schedule("0 */6 * * *", () => {
     const agentAddr = wdk.getAgentAddress();
     if (agentAddr) {
-      agentMarket.postOffer(agentAddr, 1000, 800, 30, 40);
+      agentMarket.postOffer(agentAddr, 100, 800, 30, 40);
       console.log("[Agent] 📢 Posted agent-to-agent market offer");
     }
   });

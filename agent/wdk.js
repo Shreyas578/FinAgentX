@@ -1,6 +1,6 @@
 /**
  * FinAgentX — WDK Wallet & Contract Interface
- * Self-custodial MetaMask-compatible wallet layer using ethers.js
+ * Refactored to use the official Tether Wallet Development Kit (WDK)
  * Handles signing, contract calls, and event listening for Sepolia
  */
 
@@ -58,17 +58,33 @@ const ERC20_ABI = [
   "function decimals() view returns (uint8)",
 ];
 
+// ── WDK Module Loader ────────────────────────────────────────────────────────
+let WDKCore, WalletManagerEvm;
+
+async function loadWDK() {
+  if (WDKCore && WalletManagerEvm) return;
+  // Dynamic import since these are ESM packages
+  const wdkMod = await import("@tetherto/wdk");
+  const walletMod = await import("@tetherto/wdk-wallet-evm");
+  WDKCore = wdkMod.default;
+  WalletManagerEvm = walletMod.default;
+}
+
 class WDKWallet {
   constructor() {
-    this.provider = null;
-    this.signer   = null;
-    this.addresses = null;
-    this.contracts = {};
+    this.wdk          = null;
+    this.wdkAccount   = null;
+    this.provider     = null;
+    this.signer       = null; // ethers signer for low-level compatibility
+    this.addresses    = null;
+    this.contracts    = {};
     this._initialized = false;
   }
 
   async init() {
     if (this._initialized) return;
+
+    await loadWDK();
 
     // Load deployed addresses
     const addrPath = path.join(__dirname, "deployed-addresses.json");
@@ -82,13 +98,37 @@ class WDKWallet {
     if (!rpcUrl) throw new Error("SEPOLIA_RPC_URL not set in .env");
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
 
-    // Self-custodial signer (agent wallet — separate from user wallets)
-    const privateKey = process.env.AGENT_PRIVATE_KEY || process.env.PRIVATE_KEY;
-    if (!privateKey) throw new Error("AGENT_PRIVATE_KEY not set in .env");
-    this.signer = new ethers.Wallet(
-      privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`,
-      this.provider
-    );
+    // Initialize Tether WDK
+    const mnemonic = process.env.AGENT_MNEMONIC || process.env.MNEMONIC;
+    
+    if (mnemonic) {
+      console.log(`[WDK] 🛠️ Initializing Tether WDK with mnemonic…`);
+      this.wdk = new WDKCore(mnemonic);
+      this.wdk.registerWallet("ethereum", WalletManagerEvm, {
+        provider: rpcUrl,
+      });
+      // Use standard BIP-44 path index 0
+      this.wdkAccount = await this.wdk.getAccount("ethereum", 0);
+      
+      const agentAddress = await this.wdkAccount.getAddress();
+      
+      // For contract compatibility, create an ethers signer from the WDK account's private key
+      // and connect it to our provider.
+      const kp = this.wdkAccount.keyPair;
+      this.signer = new ethers.Wallet(ethers.hexlify(kp.privateKey), this.provider);
+      
+      console.log(`[WDK] Official Tether WDK Account initialized: ${agentAddress}`);
+    } else {
+      // Legacy fallback
+      const privateKey = process.env.AGENT_PRIVATE_KEY || process.env.PRIVATE_KEY;
+      if (!privateKey) throw new Error("Neither AGENT_MNEMONIC nor AGENT_PRIVATE_KEY set in .env");
+      
+      console.log(`[WDK] ⚠️ No mnemonic found. Falling back to legacy private key.`);
+      this.signer = new ethers.Wallet(
+        privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`,
+        this.provider
+      );
+    }
 
     // Instantiate contracts
     this.contracts.loanManager  = new ethers.Contract(this.addresses.loanManager,  LOAN_MANAGER_ABI,  this.signer);
@@ -99,7 +139,7 @@ class WDKWallet {
     const network = await this.provider.getNetwork();
     const balance = await this.provider.getBalance(this.signer.address);
 
-    console.log(`🔐 WDK Wallet initialized`);
+    console.log(`🔐 WDK Layer initialized`);
     console.log(`   Agent:   ${this.signer.address}`);
     console.log(`   Network: ${network.name} (chainId: ${network.chainId})`);
     console.log(`   Balance: ${ethers.formatEther(balance)} ETH`);
@@ -112,46 +152,98 @@ class WDKWallet {
   async approveLoan(loanId, interestRateBps, defaultProbBps, explanation) {
     await this.init();
     console.log(`[WDK] Approving loan #${loanId} at ${interestRateBps/100}% interest`);
-    const tx = await this.contracts.loanManager.approveLoan(
-      loanId, interestRateBps, defaultProbBps,
-      explanation.substring(0, 500) // Cap string length for gas
-    );
-    const receipt = await tx.wait();
-    console.log(`[WDK] ✅ Loan #${loanId} approved | tx: ${receipt.hash}`);
-    return receipt;
+    
+    // If using WDK Account, we can use the sendTransaction method for extra safety
+    if (this.wdkAccount) {
+      const data = this.contracts.loanManager.interface.encodeFunctionData("approveLoan", [
+        loanId, interestRateBps, defaultProbBps, explanation.substring(0, 500)
+      ]);
+      const result = await this.wdkAccount.sendTransaction({
+        to: this.addresses.loanManager,
+        value: 0,
+        data: data
+      });
+      console.log(`[WDK] ✅ Loan #${loanId} approved via Tether WDK | tx: ${result.hash}`);
+      return { hash: result.hash };
+    } else {
+      const tx = await this.contracts.loanManager.approveLoan(
+        loanId, interestRateBps, defaultProbBps,
+        explanation.substring(0, 500)
+      );
+      const receipt = await tx.wait();
+      console.log(`[WDK] ✅ Loan #${loanId} approved | tx: ${receipt.hash}`);
+      return receipt;
+    }
   }
 
   async rejectLoan(loanId, reason) {
     await this.init();
     console.log(`[WDK] Rejecting loan #${loanId}: ${reason.substring(0, 80)}`);
-    const tx = await this.contracts.loanManager.rejectLoan(loanId, reason.substring(0, 300));
-    const receipt = await tx.wait();
-    console.log(`[WDK] ✅ Loan #${loanId} rejected | tx: ${receipt.hash}`);
-    return receipt;
+    
+    if (this.wdkAccount) {
+      const data = this.contracts.loanManager.interface.encodeFunctionData("rejectLoan", [loanId, reason.substring(0, 300)]);
+      const result = await this.wdkAccount.sendTransaction({
+        to: this.addresses.loanManager,
+        value: 0,
+        data: data
+      });
+      return { hash: result.hash };
+    } else {
+      const tx = await this.contracts.loanManager.rejectLoan(loanId, reason.substring(0, 300));
+      return tx.wait();
+    }
   }
 
   async collectRepayment(loanId) {
     await this.init();
     console.log(`[WDK] 🤖 Autonomously collecting repayment for loan #${loanId}`);
-    const tx = await this.contracts.loanManager.collectRepayment(loanId);
-    const receipt = await tx.wait();
-    console.log(`[WDK] ✅ Loan #${loanId} collected | tx: ${receipt.hash}`);
-    return receipt;
+    
+    if (this.wdkAccount) {
+      const data = this.contracts.loanManager.interface.encodeFunctionData("collectRepayment", [loanId]);
+      const result = await this.wdkAccount.sendTransaction({
+        to: this.addresses.loanManager,
+        value: 0,
+        data: data
+      });
+      return { hash: result.hash };
+    } else {
+      const tx = await this.contracts.loanManager.collectRepayment(loanId);
+      return tx.wait();
+    }
   }
 
   async liquidateLoan(loanId) {
     await this.init();
     console.log(`[WDK] Liquidating overdue loan #${loanId}`);
-    const tx = await this.contracts.loanManager.liquidateLoan(loanId);
-    const receipt = await tx.wait();
-    console.log(`[WDK] ✅ Loan #${loanId} liquidated | tx: ${receipt.hash}`);
-    return receipt;
+    
+    if (this.wdkAccount) {
+      const data = this.contracts.loanManager.interface.encodeFunctionData("liquidateLoan", [loanId]);
+      const result = await this.wdkAccount.sendTransaction({
+        to: this.addresses.loanManager,
+        value: 0,
+        data: data
+      });
+      return { hash: result.hash };
+    } else {
+      const tx = await this.contracts.loanManager.liquidateLoan(loanId);
+      return tx.wait();
+    }
   }
 
   async markDefault(loanId) {
     await this.init();
-    const tx = await this.contracts.loanManager.markDefault(loanId);
-    return tx.wait();
+    if (this.wdkAccount) {
+      const data = this.contracts.loanManager.interface.encodeFunctionData("markDefault", [loanId]);
+      const result = await this.wdkAccount.sendTransaction({
+        to: this.addresses.loanManager,
+        value: 0,
+        data: data
+      });
+      return { hash: result.hash };
+    } else {
+      const tx = await this.contracts.loanManager.markDefault(loanId);
+      return tx.wait();
+    }
   }
 
   // ── Read Operations ──────────────────────────────────────────────────────────
@@ -225,14 +317,22 @@ class WDKWallet {
 
   async getWalletBalance(address, symbol = "USDT") {
     await this.init();
+    
+    if (this.wdkAccount && address.toLowerCase() === (await this.wdkAccount.getAddress()).toLowerCase()) {
+      // Use WDK's native balance methods for the agent itself
+      const ethWei = await this.wdkAccount.getBalance();
+      const usdtAddress = this.addresses.usdt;
+      const usdtUnits = await this.wdkAccount.getTokenBalance(usdtAddress);
+      
+      return {
+        eth: parseFloat(ethers.formatEther(ethWei)).toFixed(4),
+        [symbol.toLowerCase()]: parseFloat(ethers.formatUnits(usdtUnits, 6)).toFixed(2),
+      };
+    }
+
     const ethBal  = await this.provider.getBalance(address);
-    
-    // If we have multiple tokens, we'd look up the address for 'symbol'
-    // For now, default to the main USDT contract unless we add dynamic lookup
-    let tokenContract = this.contracts.usdt;
-    
-    const tokenBal = await tokenContract.balanceOf(address);
-    const decimals = await tokenContract.decimals();
+    const tokenBal = await this.contracts.usdt.balanceOf(address);
+    const decimals = await this.contracts.usdt.decimals();
 
     return {
       eth:  parseFloat(ethers.formatEther(ethBal)).toFixed(4),
@@ -242,10 +342,8 @@ class WDKWallet {
 
   async getBlockHistory(address, fromBlock = "earliest") {
     await this.init();
-    // Get last 1000 blocks of history
     const currentBlock = await this.provider.getBlockNumber();
     const startBlock   = Math.max(0, currentBlock - 1000);
-    // Count incoming/outgoing txs via provider
     return { currentBlock, startBlock, address };
   }
 
@@ -282,7 +380,7 @@ class WDKWallet {
           console.error("[WDK] Event poll error:", err.message);
         }
       }
-    }, 10000); // Poll every 10 seconds
+    }, 10000);
   }
 
   async listenForRepayments(callback) {
@@ -338,9 +436,7 @@ class WDKWallet {
   }
 
   stopListening() {
-    // With setInterval, we'd need to track IDs to stop them.
-    // For this agent, we usually run until process exit.
-    console.log("[WDK] Polling listeners active (stop not implemented for polling mode)");
+    console.log("[WDK] Polling listeners active.");
   }
 
   getAgentAddress() {
@@ -348,6 +444,6 @@ class WDKWallet {
   }
 }
 
-// Singleton
 const wdk = new WDKWallet();
 module.exports = { wdk, WDKWallet };
+

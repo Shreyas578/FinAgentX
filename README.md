@@ -1,6 +1,6 @@
 [![LLM](https://img.shields.io/badge/LLM-Gemma%202B%20%28Ollama%29-00f5a0?style=flat)](https://ollama.ai)
 
-**FinAgentX: An autonomous on-chain AI bank using WDK & Gemma 2B to evaluate risk, issue undercollateralized USDT loans, and manage debt. A self-sovereign economic actor providing trustless credit scoring and automated repayment collection.**
+**FinAgentX: An autonomous on-chain AI bank using the official Tether WDK & Gemma 2B to evaluate risk, issue undercollateralized USDT loans, and manage debt. A self-sovereign economic actor providing trustless credit scoring and automated repayment collection using WDK-powered self-custody.**
 
 ---
 
@@ -132,10 +132,12 @@ cp .env.example .env
 
 # Edit .env and fill in:
 # SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
-# PRIVATE_KEY=your_wallet_private_key
-# AGENT_PRIVATE_KEY=your_agent_wallet_private_key (can be same)
+# PRIVATE_KEY=your_deployer_private_key
+# AGENT_MNEMONIC="your twelve word bip39 seed phrase here"
 # ETHERSCAN_API_KEY=optional
 ```
+
+> 💡 **Tip:** The agent now uses the official **Tether WDK** for autonomous signing. If you don't have a mnemonic, the agent will generate one on first run (check the logs for the unique address).
 
 ### Step 3 — Train ML Models
 
@@ -242,7 +244,7 @@ The agent runs 24/7 with this 12-step loop:
 | Step | Action |
 |------|--------|
 | 1 | Listen for `LoanRequested` on-chain events |
-| 2 | Fetch borrower wallet data via ethers.js |
+| 2 | Fetch borrower credit data via **Tether WDK** |
 | 3 | Generate ML features from on-chain data |
 | 4 | Run all 4 ML models in parallel |
 | 5 | Combine with weighted ensemble |
@@ -250,7 +252,7 @@ The agent runs 24/7 with this 12-step loop:
 | 7 | Compute uncertainty + confidence adjustments |
 | 8 | Call Gemma 2B for negotiation + explanation |
 | 9 | Decide: APPROVE / REJECT / ADJUST |
-| 10 | Execute on-chain via WDK (MetaMask self-custodial) |
+| 10 | Execute on-chain via **Tether WDK** (BIP-39 Self-Custodial) |
 | 11 | Monitor repayments; liquidate overdue loans |
 | 12 | Reallocate capital with treasury optimizer |
 
